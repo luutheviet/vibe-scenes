@@ -6,7 +6,7 @@
     {
       "name": "vibe-scenes",
       "source": "./claude-code",
-      "description": "Hình nền động toàn cửa sổ và bảng màu cho tab Code của app Claude Desktop. Gõ /canh."
+      "description": "Hình nền động toàn cửa sổ và bảng màu cho tab Code của app Claude Desktop. Gõ /scene."
     }
   ]
 }

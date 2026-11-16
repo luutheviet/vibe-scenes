@@ -6,6 +6,7 @@ import { OFF, SCENES, byId, findScene, lookOf, sceneSvg } from './scenes'
 
 const PLUGIN = 'vibe-scenes'
 const PICKER = 'vibe-scenes-picker'
+const COMMAND = 'scene'
 const STORE_KEY = 'prefs'
 const DEFAULTS: Prefs = { scene: OFF }
 
@@ -44,25 +45,45 @@ async function choose($: EngineInterface, id: string): Promise<string> {
   return why ? `Đã chọn ${label(id)}, nhưng chưa vẽ được: ${why}` : `Đã đổi sang cảnh ${label(id)}.`
 }
 
+/**
+ * Đọc cảnh đã lưu và áp lại. Không clear khi đang tắt: để yên theme của mod khác (nếu có).
+ * Trả về lựa chọn đã đọc.
+ */
+async function reapply($: EngineInterface): Promise<Prefs> {
+  const p = restore(await $.store.get(STORE_KEY))
+  if (p.scene !== OFF) {
+    const look = lookOf(p.scene)
+    if (look) await $.theme.set(look)
+  }
+  return p
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
+    // Áp hình nền trước tiên: app vẽ giao diện gốc cho tới khi theme được set,
+    // nên mọi việc khác (đăng ký lệnh, state) để sau cho nền hiện sớm nhất.
+    const p = await reapply($)
     await $.command.register({
-      name: 'canh',
-      description: 'Hình nền động: mở bảng chọn, hoặc /canh <tên cảnh>, /canh off',
+      name: COMMAND,
+      description: `Animated backdrop: open the picker, or /${COMMAND} <scene>, /${COMMAND} off`,
       argumentHint: '[bien-dem | ruong | den-long | tre | off]',
     })
-    const p = restore(await $.store.get(STORE_KEY))
     await update($, prefs, () => p)
-    // Không clear ở đây: nếu đang tắt thì để yên theme của mod khác (nếu có).
-    if (p.scene !== OFF) {
-      const look = lookOf(p.scene)
-      if (look) await $.theme.set(look)
-    }
 
     return next(e)
   })
 
-  on('command.run', { command: 'canh' }, async ($, e) => {
+  // session.start chỉ chạy một lần mỗi process, không chạy lại khi /clear (new chat),
+  // resume hay fork. Áp lại cảnh ở các lúc đó để nền không rơi về giao diện gốc.
+  on('classic.SessionStart', async ($, e, next) => {
+    // Lỗi khi áp nền không được chặn /clear: chỉ báo lên status line.
+    if (e.source !== 'startup') {
+      await reapply($).catch((err: unknown) => $.ui.status(`vibe-scenes: chưa áp lại được hình nền (${String(err)})`))
+    }
+    return next(e)
+  })
+
+  on('command.run', { command: COMMAND }, async ($, e) => {
     const arg = e.args.trim()
     if (!arg) {
       await $.ui.open({ id: PICKER, title: 'Chọn hình nền', focus: true, closeOnEscape: true })

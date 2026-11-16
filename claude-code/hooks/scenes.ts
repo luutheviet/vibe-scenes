@@ -504,14 +504,22 @@ export function colorsOf(id: string) {
   })
 }
 
+// makeColors tính cả trăm màu kèm kiểm tra tương phản: dựng một lần mỗi cảnh rồi giữ lại,
+// để lần áp lại (/clear, resume) không phải tính lại.
+const lookCache = new Map<string, ThemeSetArgs>()
+
 /** Toàn bộ "look" gửi cho $.theme.set: hình nền động + bảng màu. */
 export function lookOf(id: string): ThemeSetArgs | undefined {
+  const hit = lookCache.get(id)
+  if (hit !== undefined) return hit
   const s = byId(id)
   const made = colorsOf(id)
   if (!s || !made) return undefined
-  return {
+  const look: ThemeSetArgs = {
     backdrop: { scene: s.id, glass: s.glass },
     colors: made.theme,
     overrideColorScheme: s.mode,
   }
+  lookCache.set(id, look)
+  return look
 }

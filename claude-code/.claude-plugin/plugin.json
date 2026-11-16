@@ -1,7 +1,7 @@
 {
   "name": "vibe-scenes",
-  "version": "0.1.0",
-  "description": "Hình nền động phong cách Việt Nam cho Claude Code (không chính thức). Gõ /canh để chọn cảnh.",
+  "version": "0.2.0",
+  "description": "Hình nền động phong cách Việt Nam cho Claude Code (không chính thức). Gõ /scene để chọn cảnh.",
   "author": { "name": "luutheviet" },
   "homepage": "https://github.com/luutheviet/vibe-scenes",
   "repository": "https://github.com/luutheviet/vibe-scenes",

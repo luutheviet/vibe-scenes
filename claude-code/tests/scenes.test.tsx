@@ -17,9 +17,9 @@ const PICKER = {
   },
 } as const
 
-/** /canh <args> như người dùng gõ ở ô chat. */
-const canh = (args: string) => ({
-  command: 'canh',
+/** /scene <args> như người dùng gõ ở ô chat. */
+const run = (args: string) => ({
+  command: 'scene',
   args,
   origin: { kind: 'composer' as const },
   presentation: { isFullscreen: false, columns: 80 },
@@ -45,11 +45,11 @@ test('tìm cảnh theo tên có dấu, không dấu, tên gõ nhanh', async () =
   expect(findScene('khong-co')).toBe(undefined)
 })
 
-test('/canh <tên> đặt hình nền và bảng màu, /canh off thì tắt', async ($, on) => {
+test('/scene <tên> đặt hình nền và bảng màu, /scene off thì tắt', async ($, on) => {
   const sets: ThemeSetArgs[] = []
   let clears = 0
   mock.store(on)
-  on('command.register', () => ({ value: { command: 'canh' } }))
+  on('command.register', () => ({ value: { command: 'scene' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('theme.set', (_, e) => {
     sets.push(e)
@@ -65,18 +65,18 @@ test('/canh <tên> đặt hình nền và bảng màu, /canh off thì tắt', as
   expect(sets.length).toBe(0)
   expect(clears).toBe(0)
 
-  const res = await $.command.run(canh('tre'))
+  const res = await $.command.run(run('tre'))
   expect(res.text).toBe('Đã đổi sang cảnh Rừng tre.')
   const look = sets[0]
   expect(look?.backdrop && 'scene' in look.backdrop ? look.backdrop.scene : undefined).toBe('rung-tre')
   expect(look?.colors !== undefined).toBe(true)
   expect(look?.overrideColorScheme).toBe('light')
 
-  const off = await $.command.run(canh('off'))
+  const off = await $.command.run(run('off'))
   expect(off.text).toBe('Đã tắt hình nền, app về giao diện gốc.')
   expect(clears).toBe(1)
 
-  const bad = await $.command.run(canh('xyz'))
+  const bad = await $.command.run(run('xyz'))
   expect(bad.text?.startsWith('Không có cảnh "xyz"')).toBe(true)
 })
 
@@ -130,7 +130,7 @@ test('backdrop: vẽ cảnh của mình, để yên backdrop của mod khác', a
 test('lựa chọn cũ không hợp lệ thì quay về mặc định', async ($, on) => {
   const sets: unknown[] = []
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: { command: 'canh' } }))
+  on('command.register', () => ({ value: { command: 'scene' } }))
   mock.store(on, { prefs: { scene: 'canh-da-xoa' } })
   on('theme.set', (_, e) => {
     sets.push(e)
@@ -144,7 +144,7 @@ test('lựa chọn cũ không hợp lệ thì quay về mặc định', async ($
 test('cảnh đã lưu được áp lại khi mở phiên mới', async ($, on) => {
   const sets: ThemeSetArgs[] = []
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: { command: 'canh' } }))
+  on('command.register', () => ({ value: { command: 'scene' } }))
   mock.store(on, { prefs: { scene: 'bien-dem' } })
   on('theme.set', (_, e) => {
     sets.push(e)
@@ -155,4 +155,57 @@ test('cảnh đã lưu được áp lại khi mở phiên mới', async ($, on) 
   const look = sets[0]
   expect(look?.backdrop && 'scene' in look.backdrop ? look.backdrop.scene : undefined).toBe('bien-dem')
   expect(look?.overrideColorScheme).toBe('dark')
+})
+
+test('hình nền được set trước khi đăng ký lệnh, để nền hiện sớm nhất', async ($, on) => {
+  const order: string[] = []
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', () => {
+    order.push('command')
+    return { value: { command: 'scene' } }
+  })
+  mock.store(on, { prefs: { scene: 'den-long' } })
+  on('theme.set', () => {
+    order.push('theme')
+    return { value: { isDrawn: true, requestId: 'theme-1' } }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(order).toEqual(['theme', 'command'])
+})
+
+test('/clear (new chat), resume, fork: áp lại cảnh đã lưu; startup và lúc tắt thì không', async ($, on) => {
+  const scenes: string[] = []
+  let clears = 0
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: { command: 'scene' } }))
+  on('classic.SessionStart', () => ({}))
+  mock.store(on, { prefs: { scene: 'ruong-bac-thang' } })
+  on('theme.set', (_, e) => {
+    if (e.backdrop && 'scene' in e.backdrop && e.backdrop.scene) scenes.push(e.backdrop.scene)
+    return { value: { isDrawn: true, requestId: 'theme-1' } }
+  })
+  on('theme.clear', () => {
+    clears += 1
+    return { value: { isDrawn: false, reason: 'cleared' } }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  expect(scenes).toEqual(['ruong-bac-thang'])
+
+  // startup đã do session.start lo: không set lần hai.
+  await $.classic.SessionStart({ source: 'startup' })
+  expect(scenes.length).toBe(1)
+
+  for (const source of ['clear', 'resume', 'fork'] as const) {
+    await $.classic.SessionStart({ source })
+  }
+  expect(scenes).toEqual(['ruong-bac-thang', 'ruong-bac-thang', 'ruong-bac-thang', 'ruong-bac-thang'])
+
+  // Đang tắt: /clear không set, cũng không clear theme của mod khác.
+  await $.command.run(run('off'))
+  const before = scenes.length
+  await $.classic.SessionStart({ source: 'clear' })
+  expect(scenes.length).toBe(before)
+  expect(clears).toBe(1)
 })

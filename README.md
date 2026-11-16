@@ -28,14 +28,16 @@ Trong **app Claude Desktop** (tab Code): bấm **+** cạnh ô chat → **Plugin
 
 | Lệnh | Cảnh |
 |---|---|
-| `/canh` | Mở bảng chọn có ảnh thu nhỏ |
-| `/canh bien-dem` (`/canh trang`) | 🌙 Biển đêm: trăng, sao lấp lánh, sao băng, sóng trôi |
-| `/canh ruong` | 🌾 Ruộng bậc thang: nắng sớm, mây trôi, đàn chim |
-| `/canh den-long` (`/canh hoi an`) | 🏮 Phố đèn lồng: đèn đung đưa, đốm lửa bay, mái ngói |
-| `/canh tre` | 🎋 Rừng tre: tre đung đưa, nắng xuyên lá, lá rơi |
-| `/canh off` | Tắt, về giao diện gốc |
+| `/scene` | Mở bảng chọn có ảnh thu nhỏ |
+| `/scene bien-dem` (`/scene trang`) | 🌙 Biển đêm: trăng, sao lấp lánh, sao băng, sóng trôi |
+| `/scene ruong` | 🌾 Ruộng bậc thang: nắng sớm, mây trôi, đàn chim |
+| `/scene den-long` (`/scene hoi an`) | 🏮 Phố đèn lồng: đèn đung đưa, đốm lửa bay, mái ngói |
+| `/scene tre` | 🎋 Rừng tre: tre đung đưa, nắng xuyên lá, lá rơi |
+| `/scene off` | Tắt, về giao diện gốc |
 
-Gõ tên có dấu hay không dấu đều được. Cảnh đã chọn được nhớ cho các phiên sau. Mỗi cảnh có bảng màu riêng cho cả app (nền, chữ, màu nhấn).
+Gõ tên có dấu hay không dấu đều được. Cảnh đã chọn được nhớ cho các phiên sau, và được áp lại khi `/clear`, resume hay fork. Mỗi cảnh có bảng màu riêng cho cả app (nền, chữ, màu nhấn).
+
+> Khi mở một phiên mới, app hiện giao diện gốc trong lúc tiến trình Claude Code của phiên đó khởi động. Hình nền hiện ngay khi plugin được nạp: đây là giới hạn của app, plugin không vẽ được trước khi nó chạy.
 
 ## Vì sao yên tâm dùng
 
@@ -55,7 +57,7 @@ Mọi cảnh nằm trong [`claude-code/hooks/scenes.ts`](claude-code/hooks/scene
 
 Giới hạn: SVG tối đa 131.072 ký tự, không script, không tải gì từ ngoài.
 
-Kiểm tra trước khi gửi PR:
+Kiểm tra trước khi gửi PR (cần Claude Code 2.1.325 trở lên; bản cũ hơn báo `no loaded plugin provides $.theme` ở các test dùng theme):
 
 ```bash
 claude plugin validate claude-code
@@ -80,7 +82,7 @@ claude plugin test claude-code
 ```
 .claude-plugin/marketplace.json   để cài bằng 1 dòng
 claude-code/                      plugin cho Claude Code
-  hooks/register.tsx              lệnh /canh, bảng chọn, vẽ hình nền
+  hooks/register.tsx              lệnh /scene, bảng chọn, vẽ hình nền
   hooks/scenes.ts                 4 cảnh SVG + bảng màu
   hooks/make-colors.js (.d.ts)    dựng bảng màu (từ Claude Code, xem dưới)
   tests/scenes.test.tsx           test
@@ -104,7 +106,7 @@ Install at a Claude Code prompt:
 /plugin install vibe-scenes --marketplace luutheviet/vibe-scenes
 ```
 
-Then run `/canh` to pick a scene: night sea (`bien-dem`), rice terraces (`ruong`), lantern street (`den-long`), bamboo forest (`tre`), or `off`.
+Then run `/scene` to pick a scene: night sea (`bien-dem`), rice terraces (`ruong`), lantern street (`den-long`), bamboo forest (`tre`), or `off`.
 
 It uses the official plugin API (`$.theme.set` + `Backdrop`): no Developer Mode, no DevTools, no pasted scripts. Scenes are plain SVG + CSS animation; the plugin makes no network calls, runs no commands and reads none of your files or conversations. Tests reject scripts, event handlers and external URLs in every scene. Codex and other tools are planned.
 
