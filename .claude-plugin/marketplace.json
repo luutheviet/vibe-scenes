@@ -1,0 +1,12 @@
+{
+  "name": "vibe-scenes",
+  "owner": { "name": "luutheviet" },
+  "description": "Hình nền động phong cách Việt Nam cho công cụ code AI.",
+  "plugins": [
+    {
+      "name": "vibe-scenes",
+      "source": "./claude-code",
+      "description": "Hình nền động toàn cửa sổ và bảng màu cho tab Code của app Claude Desktop. Gõ /canh."
+    }
+  ]
+}
