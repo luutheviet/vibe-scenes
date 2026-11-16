@@ -66,7 +66,7 @@ export const register: Register = on => {
     await $.command.register({
       name: COMMAND,
       description: `Animated backdrop: open the picker, or /${COMMAND} <scene>, /${COMMAND} off`,
-      argumentHint: '[bien-dem | ruong | den-long | tre | off]',
+      argumentHint: '[bien-dem | ruong | den-long | tre | ha-long | sen | nui | hoa-dang | off]',
     })
     await update($, prefs, () => p)
 

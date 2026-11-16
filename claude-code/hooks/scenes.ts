@@ -362,6 +362,338 @@ function drawBamboo() {
   return { defs, style, body }
 }
 
+/*
+ * Các cảnh từ đây trở xuống theo nguyên tắc "đọc chữ trước":
+ * - vùng chữ (giữa màn hình) gần như một màu, độ tương phản thấp; chi tiết dồn ra mép;
+ * - chuyển động chậm (chu kỳ từ 14s trở lên), biên độ nhỏ, không nhấp nháy;
+ * - chỉ animate transform/opacity, không dùng filter (đỡ tốn GPU khi phủ toàn cửa sổ);
+ * - id trong defs có tiền tố riêng của cảnh.
+ */
+
+/** Đốm sương mềm: elip trắng mờ dần ra mép (cần gradient `${id}` trong defs). */
+function mist(id: string, cx: number, cy: number, rx: number, ry: number, opacity: number): string {
+  return `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx)}" ry="${n(ry)}" fill="url(#${id})" opacity="${n(opacity)}"/>`
+}
+
+/** Dãy núi răng cưa mềm từ x0 tới x1, đỉnh quanh `top`, đóng xuống đáy khung. */
+function ridge(r: () => number, x0: number, x1: number, top: number, jag: number, step: number): string {
+  let d = `M${n(x0)} ${H} L${n(x0)} ${n(top + r() * jag)}`
+  for (let x = x0 + step; x < x1; x += step) {
+    const y = top + r() * jag
+    d += ` Q${n(x - step / 2)} ${n(y - jag * 0.35)} ${n(x)} ${n(y)}`
+  }
+  return `${d} L${n(x1)} ${n(top + r() * jag)} L${n(x1)} ${H} Z`
+}
+
+/* ------------------------------------------------------- 5. Vịnh sương sớm */
+
+/** Một đảo đá vôi: thân dựng đứng, đỉnh tròn, chân nằm trên mặt nước `base`. */
+function karst(x: number, base: number, w: number, h: number, lean: number): string {
+  const t = base - h
+  return (
+    `M${n(x)} ${n(base)} C${n(x + w * 0.02)} ${n(base - h * 0.55)} ${n(x + w * 0.12 + lean)} ${n(t)} ${n(x + w * 0.4 + lean)} ${n(t)}` +
+    ` C${n(x + w * 0.68 + lean)} ${n(t)} ${n(x + w * 0.82)} ${n(base - h * 0.75)} ${n(x + w * 0.86)} ${n(base - h * 0.45)}` +
+    ` C${n(x + w * 0.9)} ${n(base - h * 0.2)} ${n(x + w)} ${n(base - h * 0.08)} ${n(x + w)} ${n(base)} Z`
+  )
+}
+
+function drawMistBay() {
+  const r = rng(55)
+  const sea = 600
+  const defs =
+    '<linearGradient id="hl-sky" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#dbe5ea"/><stop offset=".55" stop-color="#ebf0ef"/><stop offset="1" stop-color="#f2f1ea"/></linearGradient>' +
+    '<linearGradient id="hl-sea" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#e3eaea"/><stop offset="1" stop-color="#d5e0e2"/></linearGradient>' +
+    '<radialGradient id="hl-sun"><stop offset="0" stop-color="#fff6dc" stop-opacity=".9"/><stop offset="1" stop-color="#fff6dc" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="hl-mist"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>'
+  const style =
+    '.hl-m{animation:hl-drift linear infinite alternate}' +
+    '@keyframes hl-drift{from{transform:translateX(-120px)}to{transform:translateX(120px)}}' +
+    '.hl-boat{animation:hl-sail 220s ease-in-out infinite alternate}' +
+    '@keyframes hl-sail{from{transform:translateX(0)}to{transform:translateX(300px)}}' +
+    '.hl-sw{animation:hl-sw 9s ease-in-out infinite}' +
+    '@keyframes hl-sw{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}'
+
+  // Ba lớp đảo: xa nhạt (gần màu trời), gần đậm hơn; lớp gần chỉ ở hai mép.
+  const layers: { fill: string; xs: number[][] }[] = [
+    { fill: '#cdd9dc', xs: [[60, 150, 210], [250, 120, 150], [1180, 140, 190], [1330, 170, 230], [1500, 110, 160]] },
+    { fill: '#b3c5c9', xs: [[-30, 170, 300], [150, 130, 230], [1290, 160, 270], [1440, 190, 320]] },
+    { fill: '#93abb0', xs: [[-60, 200, 380], [1420, 240, 400]] },
+  ]
+  let islands = ''
+  let mirror = ''
+  layers.forEach(({ fill, xs }, i) => {
+    for (const [x = 0, w = 0, h = 0] of xs) {
+      const base = sea + i * 6
+      const d = karst(x, base, w, h, (r() - 0.5) * 30)
+      islands += `<path d="${d}" fill="${fill}"/>`
+      // Bóng dưới nước: lật quanh mặt nước, rất mờ.
+      mirror += `<path d="${d}" fill="${fill}" transform="translate(0 ${n(base * 2)}) scale(1 -1)"/>`
+    }
+  })
+  // Dải đảo thấp, rất nhạt ở chân trời giữa: có chiều sâu mà không cắt ngang vùng chữ.
+  const horizon = ridge(r, 380, 1220, sea - 26, 18, 70)
+
+  let mists = ''
+  const rows: [number, number, number][] = [
+    [sea - 40, 620, 0.75],
+    [sea + 10, 560, 0.6],
+    [sea - 160, 520, 0.45],
+    [sea + 120, 700, 0.5],
+  ]
+  rows.forEach(([y, rx, op], i) => {
+    const dur = 70 + i * 23
+    mists += `<g class="hl-m" style="animation-duration:${dur}s;animation-delay:${n(-r() * dur)}s">${mist('hl-mist', 300 + r() * 1000, y, rx, 46 + r() * 20, op)}</g>`
+  })
+
+  const boat =
+    `<g class="hl-boat"><g class="hl-sw" fill="#6f8589">` +
+    `<path d="M1150 ${sea - 2} l46 0 l-6 7 l-34 0 Z"/>` +
+    `<path d="M1162 ${sea - 4} l0 -30 l14 6 l-2 24 Z"/><path d="M1179 ${sea - 4} l0 -24 l11 5 l-2 19 Z"/>` +
+    '</g></g>'
+
+  const body =
+    `<rect width="${W}" height="${H}" fill="url(#hl-sky)"/>` +
+    '<circle cx="1210" cy="190" r="190" fill="url(#hl-sun)"/>' +
+    `<path d="${horizon}" fill="#d7e1e2" opacity=".8"/>` +
+    `<rect y="${sea}" width="${W}" height="${H - sea}" fill="url(#hl-sea)"/>` +
+    `<g opacity=".22">${mirror}</g>` +
+    islands +
+    boat +
+    mists
+
+  return { defs, style, body }
+}
+
+/* ------------------------------------------------------------- 6. Đầm sen */
+
+/** Lá sen nổi: hình tròn khuyết một góc, nhìn nghiêng nên dẹt theo chiều dọc. */
+function lotusLeaf(cx: number, cy: number, rad: number, notch: number, fill: string, vein: string): string {
+  const a1 = notch + 0.13
+  const a2 = notch - 0.13
+  const p = (a: number) => `${n(Math.cos(a) * rad)} ${n(Math.sin(a) * rad)}`
+  let veins = ''
+  for (let i = 1; i < 9; i++) {
+    const a = notch + (i / 9) * Math.PI * 2
+    veins += `<line x1="0" y1="0" x2="${n(Math.cos(a) * rad * 0.9)}" y2="${n(Math.sin(a) * rad * 0.9)}"/>`
+  }
+  return (
+    `<g transform="translate(${n(cx)} ${n(cy)}) scale(1 .58)">` +
+    `<path d="M0 0 L${p(a1)} A${n(rad)} ${n(rad)} 0 1 1 ${p(a2)} Z" fill="${fill}"/>` +
+    `<g stroke="${vein}" stroke-width="2" opacity=".55">${veins}</g></g>`
+  )
+}
+
+/** Hoa sen: năm cánh quanh gốc (x, y), có cuống thả xuống mặt nước. */
+function lotusFlower(x: number, y: number, s: number, stem: number, sway: string): string {
+  const petals = [-58, 58, -30, 30, 0]
+    .map(
+      a =>
+        `<ellipse cx="0" cy="${n(-26 * s)}" rx="${n(11 * s)}" ry="${n(28 * s)}" transform="rotate(${a})" fill="url(#ds-petal)"/>`,
+    )
+    .join('')
+  return (
+    `<g class="ds-sway" style="transform-origin:${n(x)}px ${n(y + stem)}px;${sway}">` +
+    `<path d="M${n(x)} ${n(y + stem)} q${n(-6 * s)} ${n(-stem / 2)} 0 ${n(-stem)}" stroke="#7f9d74" stroke-width="${n(3 * s)}" fill="none"/>` +
+    `<g transform="translate(${n(x)} ${n(y)})">${petals}<circle cy="${n(-8 * s)}" r="${n(6 * s)}" fill="#e8cf86"/></g></g>`
+  )
+}
+
+function drawLotusPond() {
+  const r = rng(66)
+  const defs =
+    '<linearGradient id="ds-bg" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#eef3e8"/><stop offset=".5" stop-color="#f4f4ea"/><stop offset="1" stop-color="#e7eee2"/></linearGradient>' +
+    '<linearGradient id="ds-petal" x1="0" y1="1" x2="0" y2="0">' +
+    '<stop offset="0" stop-color="#f6dde2"/><stop offset="1" stop-color="#e3a0b2"/></linearGradient>'
+  const style =
+    '.ds-sway{animation:ds-sway 16s ease-in-out infinite}' +
+    '@keyframes ds-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}' +
+    '.ds-rip{transform-box:fill-box;transform-origin:center;animation:ds-rip 14s ease-out infinite}' +
+    '@keyframes ds-rip{0%{transform:scale(.2);opacity:0}15%{opacity:.5}100%{transform:scale(1.6);opacity:0}}' +
+    '.ds-bob{animation:ds-bob 18s ease-in-out infinite}' +
+    '@keyframes ds-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}'
+
+  const greens = ['#b7cca8', '#a7c19a', '#c3d4b5', '#9fba92']
+  // Lá chỉ ở bốn góc; giữa màn hình để trống.
+  const spots: [number, number, number][] = [
+    [80, 90, 150], [270, 40, 110], [40, 300, 95], [1530, 110, 140], [1340, 50, 100], [1560, 330, 90],
+    [120, 820, 160], [330, 880, 120], [1480, 830, 170], [1270, 890, 110],
+  ]
+  let leaves = ''
+  spots.forEach(([x, y, rad], i) => {
+    const leaf = lotusLeaf(x, y, rad, r() * Math.PI * 2, pick(r, greens), '#dbe6cf')
+    leaves += `<g class="ds-bob" style="animation-delay:${n(-i * 2.3)}s">${leaf}</g>`
+  })
+
+  const flowers =
+    lotusFlower(250, 210, 1.15, 90, 'animation-delay:-3s') +
+    lotusFlower(1390, 230, 1, 80, 'animation-delay:-9s') +
+    lotusFlower(1440, 700, 1.2, 70, 'animation-delay:-5s') +
+    `<g opacity=".85">${lotusFlower(180, 690, 0.8, 60, 'animation-delay:-12s')}</g>`
+
+  let ripples = ''
+  const rp: [number, number][] = [[420, 790], [1180, 160], [1230, 800]]
+  rp.forEach(([x, y], i) => {
+    for (let k = 0; k < 2; k++) {
+      ripples += `<ellipse class="ds-rip" cx="${x}" cy="${y}" rx="70" ry="22" fill="none" stroke="#a9bfa0" stroke-width="1.6" style="animation-delay:${n(-(i * 4.6 + k * 7))}s"/>`
+    }
+  })
+
+  const body = `<rect width="${W}" height="${H}" fill="url(#ds-bg)"/>` + ripples + leaves + flowers
+
+  return { defs, style, body }
+}
+
+/* ---------------------------------------------------------- 7. Núi đêm Tây Bắc */
+
+function drawMountainNight() {
+  const r = rng(77)
+  const defs =
+    '<linearGradient id="nd-sky" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#0e1422"/><stop offset=".6" stop-color="#151e31"/><stop offset="1" stop-color="#1b253a"/></linearGradient>' +
+    '<radialGradient id="nd-moon"><stop offset="0" stop-color="#efe7c8" stop-opacity=".35"/><stop offset="1" stop-color="#efe7c8" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="nd-mist"><stop offset="0" stop-color="#9fb0cc"/><stop offset="1" stop-color="#9fb0cc" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="nd-win"><stop offset="0" stop-color="#f3c47a"/><stop offset="1" stop-color="#f3c47a" stop-opacity="0"/></radialGradient>'
+  const style =
+    '.nd-tw{animation:nd-tw 12s ease-in-out infinite}' +
+    '@keyframes nd-tw{0%,100%{opacity:.35}50%{opacity:.7}}' +
+    '.nd-m{animation:nd-drift linear infinite alternate}' +
+    '@keyframes nd-drift{from{transform:translateX(-140px)}to{transform:translateX(140px)}}' +
+    '.nd-win{animation:nd-win 10s ease-in-out infinite}' +
+    '@keyframes nd-win{0%,100%{opacity:.55}50%{opacity:.85}}'
+
+  // Sao thưa, mờ, lấp lánh chậm; nằm ở dải trên cùng.
+  let stars = ''
+  for (let i = 0; i < 46; i++) {
+    const x = r() * W
+    const y = r() * 330
+    stars += `<circle class="nd-tw" cx="${n(x)}" cy="${n(y)}" r="${n(0.6 + r() * 1.1)}" fill="#e6e9f2" style="animation-delay:${n(-r() * 12)}s"/>`
+  }
+
+  // Bốn lớp núi, gần thì tối hơn, chênh nhau rất ít với bầu trời.
+  const ridges =
+    `<path d="${ridge(r, 0, W, 520, 90, 120)}" fill="#1f2a40"/>` +
+    `<path d="${ridge(r, 0, W, 610, 80, 150)}" fill="#1a2338"/>` +
+    `<path d="${ridge(r, 0, W, 700, 70, 170)}" fill="#151d2f"/>` +
+    `<path d="${ridge(r, 0, W, 790, 50, 200)}" fill="#111726"/>`
+
+  let mists = ''
+  const rows: [number, number][] = [[600, 0.1], [690, 0.08], [520, 0.06]]
+  rows.forEach(([y, op], i) => {
+    const dur = 110 + i * 30
+    mists += `<g class="nd-m" style="animation-duration:${dur}s;animation-delay:${n(-r() * dur)}s">${mist('nd-mist', 200 + r() * 1200, y, 640, 38, op)}</g>`
+  })
+
+  // Vài ánh đèn nhà sàn ở sườn núi hai bên mép.
+  const homes: [number, number][] = [[160, 668], [205, 676], [1395, 700], [1452, 690], [1488, 704]]
+  let lights = ''
+  homes.forEach(([x, y], i) => {
+    lights += `<g class="nd-win" style="animation-delay:${n(-i * 2.1)}s"><circle cx="${x}" cy="${y}" r="14" fill="url(#nd-win)"/><rect x="${x - 2.5}" y="${y - 2}" width="5" height="4" fill="#f6d79b"/></g>`
+  })
+
+  const body =
+    `<rect width="${W}" height="${H}" fill="url(#nd-sky)"/>` +
+    stars +
+    '<circle cx="270" cy="150" r="120" fill="url(#nd-moon)"/>' +
+    '<path d="M282 112 a40 40 0 1 0 0 76 a32 32 0 1 1 0 -76 Z" fill="#ece4c4" opacity=".85"/>' +
+    ridges +
+    mists +
+    lights
+
+  return { defs, style, body }
+}
+
+/* --------------------------------------------------------------- 8. Hoa đăng */
+
+/** Một đèn hoa đăng trôi: đế hoa sen nhỏ, lõi sáng ấm, quầng sáng và vệt phản chiếu. */
+function floatLantern(x: number, y: number, s: number): string {
+  const P = (dx: number, dy: number) => `${n(x + dx * s)} ${n(y + dy * s)}`
+  return (
+    `<circle cx="${n(x)}" cy="${n(y - 8 * s)}" r="${n(40 * s)}" fill="url(#hd-glow)"/>` +
+    // Vệt phản chiếu dưới nước.
+    `<rect x="${n(x - 4 * s)}" y="${n(y + 6 * s)}" width="${n(8 * s)}" height="${n(40 * s)}" rx="${n(4 * s)}" fill="url(#hd-ref)"/>` +
+    `<ellipse cx="${n(x)}" cy="${n(y + 2 * s)}" rx="${n(18 * s)}" ry="${n(4.5 * s)}" fill="#7d4636"/>` +
+    // Cánh sen: hai cánh bên, một cánh giữa; ngọn nến sáng bên trong.
+    `<path d="M${P(-17, 0)} Q${P(-21, -16)} ${P(-7, -19)} Q${P(-4, -8)} ${P(-1, 0)} Z" fill="#e0805f"/>` +
+    `<path d="M${P(17, 0)} Q${P(21, -16)} ${P(7, -19)} Q${P(4, -8)} ${P(1, 0)} Z" fill="#e0805f"/>` +
+    `<path d="M${P(-8, 0)} Q${P(0, -30)} ${P(8, 0)} Z" fill="#f4ad74"/>` +
+    `<circle cx="${n(x)}" cy="${n(y - 7 * s)}" r="${n(3 * s)}" fill="#fff0c8"/>`
+  )
+}
+
+function drawLanternRiver() {
+  const r = rng(88)
+  const water = 610
+  const defs =
+    '<linearGradient id="hd-sky" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#110f1c"/><stop offset="1" stop-color="#1b1727"/></linearGradient>' +
+    '<linearGradient id="hd-river" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#171422"/><stop offset="1" stop-color="#0e0c16"/></linearGradient>' +
+    '<radialGradient id="hd-glow"><stop offset="0" stop-color="#ffbf66" stop-opacity=".42"/><stop offset="1" stop-color="#ffbf66" stop-opacity="0"/></radialGradient>' +
+    '<linearGradient id="hd-ref" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b45e" stop-opacity=".35"/><stop offset="1" stop-color="#f2b45e" stop-opacity="0"/></linearGradient>' +
+    '<radialGradient id="hd-win"><stop offset="0" stop-color="#e9b26a" stop-opacity=".7"/><stop offset="1" stop-color="#e9b26a" stop-opacity="0"/></radialGradient>'
+  const style =
+    '.hd-go{animation:hd-go linear infinite}' +
+    `@keyframes hd-go{from{transform:translateX(-120px)}to{transform:translateX(${W + 120}px)}}` +
+    '.hd-bob{animation:hd-bob 7s ease-in-out infinite}' +
+    '@keyframes hd-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}' +
+    '.hd-tw{animation:hd-tw 14s ease-in-out infinite}' +
+    '@keyframes hd-tw{0%,100%{opacity:.3}50%{opacity:.6}}'
+
+  let stars = ''
+  for (let i = 0; i < 30; i++) {
+    stars += `<circle class="hd-tw" cx="${n(r() * W)}" cy="${n(r() * 260)}" r="${n(0.6 + r())}" fill="#efe6dc" style="animation-delay:${n(-r() * 14)}s"/>`
+  }
+
+  // Bờ bên kia: mái nhà thấp, chỉ cao ở hai mép; vài ô cửa sáng mờ.
+  const roofs = (x0: number, x1: number, hi: number) => {
+    let d = `M${x0} ${water}`
+    for (let x = x0; x < x1; x += 70 + r() * 40) {
+      const w = 60 + r() * 40
+      const h = hi * (0.6 + r() * 0.4)
+      d += ` L${n(x)} ${n(water - h)} L${n(x + w * 0.15)} ${n(water - h - 16)} L${n(x + w * 0.85)} ${n(water - h - 16)} L${n(x + w)} ${n(water - h)}`
+    }
+    return `${d} L${x1} ${water} Z`
+  }
+  let windows = ''
+  const wins: [number, number][] = [[90, 560], [175, 548], [300, 566], [1300, 562], [1410, 548], [1520, 560]]
+  for (const [x, y] of wins) windows += `<circle cx="${x}" cy="${y}" r="16" fill="url(#hd-win)"/><rect x="${x - 4}" y="${y - 4}" width="8" height="7" fill="#d9a35e" opacity=".8"/>`
+
+  // Cầu vòm thấp bên trái: mặt cầu cong, ba nhịp vòm, bóng mờ dưới nước.
+  const w0 = water
+  const bridgeD =
+    `M0 ${w0} L0 ${w0 - 44} Q210 ${w0 - 112} 420 ${w0 - 44} L420 ${w0}` +
+    ` L392 ${w0} Q341 ${w0 - 42} 290 ${w0} L272 ${w0} Q210 ${w0 - 72} 148 ${w0} L130 ${w0} Q79 ${w0 - 42} 28 ${w0} Z`
+  const bridge =
+    `<path d="${bridgeD}" fill="#251f35"/>` +
+    `<path d="M0 ${w0 - 44} Q210 ${w0 - 112} 420 ${w0 - 44}" fill="none" stroke="#3a3048" stroke-width="3"/>` +
+    `<path d="${bridgeD}" fill="#251f35" opacity=".35" transform="translate(0 ${w0 * 2}) scale(1 -1)"/>`
+
+  // Đèn trôi chậm sang phải; mỗi chiếc một làn và một tốc độ.
+  let lanterns = ''
+  for (let i = 0; i < 8; i++) {
+    const y = water + 60 + (i % 4) * 55 + r() * 20
+    const s = 0.8 + ((y - water) / 300) * 0.5
+    const dur = 160 + r() * 90
+    lanterns += `<g class="hd-go" style="animation-duration:${n(dur)}s;animation-delay:${n(-r() * dur)}s"><g class="hd-bob" style="animation-delay:${n(-r() * 7)}s">${floatLantern(0, y, s)}</g></g>`
+  }
+
+  const body =
+    `<rect width="${W}" height="${H}" fill="url(#hd-sky)"/>` +
+    stars +
+    `<path d="${roofs(0, 430, 70)}" fill="#221d30"/>` +
+    `<path d="${roofs(1180, W, 75)}" fill="#221d30"/>` +
+    `<rect y="${water - 6}" width="${W}" height="6" fill="#221d30"/>` +
+    windows +
+    `<rect y="${water}" width="${W}" height="${H - water}" fill="url(#hd-river)"/>` +
+    bridge +
+    lanterns
+
+  return { defs, style, body }
+}
+
 /* --------------------------------------------------------- danh sách cảnh */
 
 export const SCENES: readonly Scene[] = [
@@ -448,6 +780,90 @@ export const SCENES: readonly Scene[] = [
       },
     },
     draw: drawBamboo,
+  },
+  {
+    id: 'vinh-suong',
+    name: 'Vịnh sương sớm',
+    desc: 'Đảo đá vôi trong sương, thuyền buồm trôi xa',
+    alias: ['vinh', 'suong', 'ha long', 'halong', 'bay', 'mist'],
+    mode: 'light',
+    glass: { blur: 18, tint: '#f1f4f3', opacity: 0.7 },
+    palette: {
+      roles: { accent: '#2c6a7a', danger: '#b23a35', success: '#3f7f4a', warning: '#9a6a12', pro: '#6a5596' },
+      anchors: {
+        'surface-0': '#e4eaea',
+        'surface-1': '#ecf1f0',
+        'surface-2': '#f5f8f7',
+        'surface-3': '#f5f8f7',
+        'text-primary': '#17242a',
+        'text-secondary': '#33454b',
+        'text-muted': '#4e6167',
+      },
+    },
+    draw: drawMistBay,
+  },
+  {
+    id: 'dam-sen',
+    name: 'Đầm sen',
+    desc: 'Lá sen nổi, hoa sen khẽ đung đưa, gợn nước',
+    alias: ['sen', 'dam', 'ho sen', 'lotus'],
+    mode: 'light',
+    glass: { blur: 16, tint: '#f3f6ee', opacity: 0.68 },
+    palette: {
+      roles: { accent: '#a64a6a', danger: '#b23a2e', success: '#3f7d3c', warning: '#966914', pro: '#6a4f96' },
+      anchors: {
+        'surface-0': '#e8eee1',
+        'surface-1': '#eff4e9',
+        'surface-2': '#f7f9f3',
+        'surface-3': '#f7f9f3',
+        'text-primary': '#1c291b',
+        'text-secondary': '#374935',
+        'text-muted': '#52644f',
+      },
+    },
+    draw: drawLotusPond,
+  },
+  {
+    id: 'nui-dem',
+    name: 'Núi đêm',
+    desc: 'Núi Tây Bắc chồng lớp, sương trôi, đèn nhà sàn',
+    alias: ['nui', 'tay bac', 'mountain'],
+    mode: 'dark',
+    glass: { blur: 18, tint: '#111725', opacity: 0.66 },
+    palette: {
+      roles: { accent: '#7fa8e0', danger: '#ef6b5e', success: '#7cc48a', warning: '#e9b955', pro: '#b59cf0' },
+      anchors: {
+        'surface-0': '#10151f',
+        'surface-1': '#161c28',
+        'surface-2': '#1b2230',
+        'surface-3': '#1f2735',
+        'text-primary': '#eef1f6',
+        'text-secondary': '#c9cfdb',
+        'text-muted': '#a3abba',
+      },
+    },
+    draw: drawMountainNight,
+  },
+  {
+    id: 'hoa-dang',
+    name: 'Hoa đăng',
+    desc: 'Đèn hoa đăng trôi chậm trên sông đêm',
+    alias: ['hoa dang', 'dang', 'song', 'river'],
+    mode: 'dark',
+    glass: { blur: 18, tint: '#15111f', opacity: 0.66 },
+    palette: {
+      roles: { accent: '#f0a54a', danger: '#ef6a5a', success: '#86c48c', warning: '#f1c45a', pro: '#c3a0f0' },
+      anchors: {
+        'surface-0': '#141120',
+        'surface-1': '#1b1729',
+        'surface-2': '#211c31',
+        'surface-3': '#251f36',
+        'text-primary': '#f5eee6',
+        'text-secondary': '#d8ccc4',
+        'text-muted': '#b3a7a4',
+      },
+    },
+    draw: drawLanternRiver,
   },
 ]
 

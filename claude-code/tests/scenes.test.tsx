@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 import type { ThemeSetArgs } from 'claude-code'
 
-import { OFF, SCENES, findScene, sceneSvg } from '../hooks/scenes'
+import { OFF, SCENES, colorsOf, findScene, sceneSvg } from '../hooks/scenes'
 
 const PICKER = {
   plugin: 'vibe-scenes',
@@ -42,6 +42,10 @@ test('tìm cảnh theo tên có dấu, không dấu, tên gõ nhanh', async () =
   expect(findScene('hoi an')).toBe('den-long')
   expect(findScene('TRE')).toBe('rung-tre')
   expect(findScene('tắt')).toBe(OFF)
+  expect(findScene('Hạ Long')).toBe('vinh-suong')
+  expect(findScene('sen')).toBe('dam-sen')
+  expect(findScene('Núi Đêm')).toBe('nui-dem')
+  expect(findScene('hoa đăng')).toBe('hoa-dang')
   expect(findScene('khong-co')).toBe(undefined)
 })
 
@@ -208,4 +212,33 @@ test('/clear (new chat), resume, fork: áp lại cảnh đã lưu; startup và l
   await $.classic.SessionStart({ source: 'clear' })
   expect(scenes.length).toBe(before)
   expect(clears).toBe(1)
+})
+
+/** Độ tương phản WCAG giữa hai màu hex 6 chữ số. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    const [r, g, bl] = c.map(v => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [number, number, number]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number]
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+test('bảng màu mỗi cảnh: chữ dễ đọc, Desktop chịu vẽ', async () => {
+  const bad: string[] = []
+  for (const s of SCENES) {
+    const a = s.palette.anchors
+    for (const k of ['surface-0', 'surface-1', 'surface-2', 'surface-3'] as const) {
+      const c = contrast(a['text-primary'], a[k])
+      if (c < 7) bad.push(`${s.id}: text-primary trên ${k} = ${c.toFixed(2)} (< 7)`)
+    }
+    for (const k of ['surface-0', 'surface-2'] as const) {
+      const c = contrast(a['text-muted'], a[k])
+      if (c < 4.5) bad.push(`${s.id}: text-muted trên ${k} = ${c.toFixed(2)} (< 4.5)`)
+    }
+    const problems = colorsOf(s.id)?.problems ?? []
+    for (const p of problems) if (p.startsWith("Desktop won't paint")) bad.push(`${s.id}: ${p}`)
+  }
+  expect(bad).toEqual([])
 })
