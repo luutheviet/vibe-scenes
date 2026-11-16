@@ -37,6 +37,8 @@ Trong **app Claude Desktop** (tab Code): bấm **+** cạnh ô chat → **Plugin
 | `/scene sen` | 🪷 Đầm sen: lá sen nổi, hoa sen khẽ đung đưa, gợn nước |
 | `/scene nui` | 🏔️ Núi đêm: núi Tây Bắc chồng lớp, sương trôi, đèn nhà sàn |
 | `/scene hoa-dang` | 🏮 Hoa đăng: đèn hoa đăng trôi chậm trên sông đêm |
+| `/scene kinh` | 🫧 Kính lỏng: nền pastel loang, dải kính cong và giọt kính khúc xạ (sáng) |
+| `/scene kinh-dem` | 🫧 Kính lỏng đêm: cùng phong cách kính trên nền đêm xanh tím |
 | `/scene off` | Tắt, về giao diện gốc |
 
 Gõ tên có dấu hay không dấu đều được. Cảnh đã chọn được nhớ cho các phiên sau, và được áp lại khi `/clear`, resume hay fork. Mỗi cảnh có bảng màu riêng cho cả app (nền, chữ, màu nhấn).
@@ -118,7 +120,7 @@ Install at a Claude Code prompt:
 /plugin install vibe-scenes --marketplace luutheviet/vibe-scenes
 ```
 
-Then run `/scene` to pick a scene: night sea (`bien-dem`), rice terraces (`ruong`), lantern street (`den-long`), bamboo forest (`tre`), misty bay (`ha-long`), lotus pond (`sen`), mountain night (`nui`), lantern river (`hoa-dang`), or `off`.
+Then run `/scene` to pick a scene: night sea (`bien-dem`), rice terraces (`ruong`), lantern street (`den-long`), bamboo forest (`tre`), misty bay (`ha-long`), lotus pond (`sen`), mountain night (`nui`), lantern river (`hoa-dang`), liquid glass (`kinh`, `kinh-dem`), or `off`.
 
 It uses the official plugin API (`$.theme.set` + `Backdrop`): no Developer Mode, no DevTools, no pasted scripts. Scenes are plain SVG + CSS animation; the plugin makes no network calls, runs no commands and reads none of your files or conversations. Tests reject scripts, event handlers and external URLs in every scene. Codex and other tools are planned.
 

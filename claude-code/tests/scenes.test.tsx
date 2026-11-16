@@ -46,6 +46,10 @@ test('tìm cảnh theo tên có dấu, không dấu, tên gõ nhanh', async () =
   expect(findScene('sen')).toBe('dam-sen')
   expect(findScene('Núi Đêm')).toBe('nui-dem')
   expect(findScene('hoa đăng')).toBe('hoa-dang')
+  expect(findScene('kinh')).toBe('kinh-long')
+  expect(findScene('Kính lỏng')).toBe('kinh-long')
+  expect(findScene('kinh-dem')).toBe('kinh-long-dem')
+  expect(findScene('Kính lỏng đêm')).toBe('kinh-long-dem')
   expect(findScene('khong-co')).toBe(undefined)
 })
 
