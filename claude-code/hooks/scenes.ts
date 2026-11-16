@@ -59,6 +59,8 @@ function rng(seed: number): () => number {
 }
 
 const n = (v: number) => String(Math.round(v * 10) / 10)
+/** Như `n` nhưng giữ 3 chữ số thập phân: dùng cho độ đậm (opacity) nhỏ. */
+const n3 = (v: number) => String(Math.round(v * 1000) / 1000)
 
 const pick = <T,>(r: () => number, list: readonly T[]): T => list[Math.floor(r() * list.length)] as T
 
@@ -743,67 +745,87 @@ function glassRibbon(p: string, pts: readonly Pt[], width: number, dark: boolean
   )
 }
 
-/** Một giọt kính tròn: lòng gần như trong suốt, mép dày sáng, đốm phản quang, vệt hội tụ đáy. */
-function glassOrb(p: string, cx: number, cy: number, r: number, dark: boolean): string {
-  const arc = (r0: number, a0: number, a1: number) => {
-    const P = (a: number) => `${n(cx + Math.cos(a) * r0)} ${n(cy + Math.sin(a) * r0)}`
-    return `M${P(a0)} A${n(r0)} ${n(r0)} 0 0 1 ${P(a1)}`
-  }
+/**
+ * Một tấm kính lớn hình elip, phần lớn nằm ngoài khung: lòng gần như trong suốt, mép dày sáng dần,
+ * viền phản quang đổi độ sáng dọc mép, quầng màu khúc xạ sát mép, bóng đổ mềm phía ngoài.
+ * Bóng và độ dày mép đều là gradient (không dùng filter) nên rẻ khi cuộn.
+ */
+function glassSheet(p: string, cx: number, cy: number, rx: number, ry: number, rot: number, dark: boolean): string {
+  const e = (kx: number, ky: number, rest: string) => `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(kx)}" ry="${n(ky)}" ${rest}/>`
+  // Elip bóng lớn hơn thân đúng bằng tỉ lệ điểm dừng .94 trong gradient `-shade`.
+  const k = 1 / 0.94
   return (
-    `<ellipse cx="${n(cx + r * 0.08)}" cy="${n(cy + r * 1.05)}" rx="${n(r * 0.8)}" ry="${n(r * 0.12)}" fill="${dark ? '#000814' : '#5a6a96'}" opacity="${dark ? 0.3 : 0.08}"/>` +
-    `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" fill="url(#${p}-orb)"/>` +
-    `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r - 1)}" fill="none" stroke="url(#${p}-iri)" stroke-opacity="${dark ? 0.55 : 0.7}" stroke-width="2"/>` +
-    `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r * 0.93)}" fill="none" stroke="#ffffff" stroke-opacity="${dark ? 0.18 : 0.45}" stroke-width="1.2"/>` +
-    `<ellipse cx="${n(cx - r * 0.36)}" cy="${n(cy - r * 0.46)}" rx="${n(r * 0.36)}" ry="${n(r * 0.15)}" transform="rotate(-32 ${n(cx - r * 0.36)} ${n(cy - r * 0.46)})" fill="url(#${p}-spec)" class="${p}-sh"/>` +
-    `<path d="${arc(r * 0.8, 0.35, 1.45)}" fill="none" stroke="#ffffff" stroke-opacity="${dark ? 0.35 : 0.7}" stroke-width="${n(r * 0.05)}" stroke-linecap="round"/>`
+    `<g transform="rotate(${rot} ${n(cx)} ${n(cy)})">` +
+    e(rx * k, ry * k, `fill="url(#${p}-shade)"`) +
+    e(rx, ry, `fill="url(#${p}-sheet)"`) +
+    e(rx - 15, ry - 15, `fill="none" stroke="url(#${p}-iri)" stroke-opacity="${dark ? 0.2 : 0.34}" stroke-width="9"`) +
+    e(rx - 1.2, ry - 1.2, `fill="none" stroke="url(#${p}-rim)" stroke-width="2.4"`) +
+    '</g>'
   )
 }
 
 /**
- * Kính lỏng: nền loang màu pastel rất mịn ở giữa (vùng chữ), dải kính cong và giọt kính
- * ở các góc. Mọi chuyển động chỉ dùng transform/opacity, chu kỳ dài.
+ * Kính lỏng: nền xanh băng, bạc, tím nhạt, hồng phấn loang rất mịn; ánh sáng khuếch tán ở giữa
+ * (vùng chữ); các tấm kính lớn và dải kính cong xếp lớp ở mép. Mọi chuyển động chỉ dùng
+ * transform/opacity, chu kỳ dài.
  */
 function drawLiquidGlass(dark: boolean) {
   const p = dark ? 'lgd' : 'lg'
-  const base = dark ? ['#0c1020', '#121730', '#0e1426'] : ['#e8eef9', '#f0edf8', '#eaf2f5']
-  // Năm vệt màu loang: [x, y, bán kính, màu, độ đậm].
+  const base = dark ? ['#0a1020', '#10162c', '#150f2a'] : ['#cddcf4', '#dfe5f6', '#ddd6f3']
+  // Các vệt sáng loang: [x, y, bán kính, màu, độ đậm]. Vệt cuối là ánh sáng khuếch tán giữa khung.
   const blobs: [number, number, number, string, number][] = dark
     ? [
-        [140, 80, 620, '#2b3f9e', 0.55],
-        [1500, 160, 560, '#5b2f93', 0.5],
-        [1480, 860, 600, '#155e72', 0.5],
-        [120, 880, 560, '#7a2a6c', 0.42],
-        [800, 450, 700, '#1e2a5a', 0.2],
+        [120, 60, 640, '#24449a', 0.46],
+        [1520, 120, 560, '#4c3196', 0.42],
+        [1500, 860, 600, '#7a2f6e', 0.36],
+        [100, 880, 560, '#1c4c8c', 0.4],
+        [-40, 470, 380, '#6a2a68', 0.26],
+        [800, 440, 680, '#141c40', 0.5],
       ]
     : [
-        [140, 80, 620, '#a9c8f5', 0.75],
-        [1500, 160, 560, '#cdbcf2', 0.7],
-        [1480, 860, 600, '#b8e4dc', 0.65],
-        [120, 880, 560, '#f5c6da', 0.6],
-        [800, 450, 700, '#f7e3d2', 0.35],
+        [120, 60, 640, '#9fc4f7', 0.8],
+        [1520, 120, 560, '#c9bdf5', 0.7],
+        [1500, 860, 600, '#f7c7dc', 0.62],
+        [100, 880, 560, '#a9cdf6', 0.7],
+        [-40, 470, 380, '#f3c9df', 0.45],
+        [800, 440, 680, '#ffffff', 0.62],
       ]
+  // Hệ số độ đậm của kính: đêm thì kính chỉ còn ánh viền.
+  const a = (v: number) => n3(dark ? v * 0.22 : v)
 
   let defs =
     `<linearGradient id="${p}-base" x1="0" y1="0" x2="1" y2="1">` +
     `<stop offset="0" stop-color="${base[0]}"/><stop offset=".5" stop-color="${base[1]}"/><stop offset="1" stop-color="${base[2]}"/></linearGradient>` +
+    // Thân dải kính.
     `<linearGradient id="${p}-body" x1="0" y1="0" x2="1" y2="1">` +
-    `<stop offset="0" stop-color="#ffffff" stop-opacity="${dark ? 0.11 : 0.62}"/>` +
-    `<stop offset=".5" stop-color="#ffffff" stop-opacity="${dark ? 0.04 : 0.16}"/>` +
-    `<stop offset="1" stop-color="#ffffff" stop-opacity="${dark ? 0.08 : 0.48}"/></linearGradient>` +
+    `<stop offset="0" stop-color="#ffffff" stop-opacity="${dark ? 0.1 : 0.6}"/>` +
+    `<stop offset=".5" stop-color="#ffffff" stop-opacity="${dark ? 0.03 : 0.14}"/>` +
+    `<stop offset="1" stop-color="#ffffff" stop-opacity="${dark ? 0.07 : 0.44}"/></linearGradient>` +
+    // Màu khúc xạ: chỉ hồng phấn, xanh băng, tím nhạt (không dùng màu rực).
     `<linearGradient id="${p}-iri" x1="0" y1="0" x2="1" y2="1">` +
-    '<stop offset="0" stop-color="#ff9ecb"/><stop offset=".35" stop-color="#9fc2ff"/>' +
-    '<stop offset=".7" stop-color="#9ff0d6"/><stop offset="1" stop-color="#ffd9a0"/></linearGradient>' +
-    `<radialGradient id="${p}-orb" cx=".42" cy=".38" r=".62">` +
-    `<stop offset="0" stop-color="#ffffff" stop-opacity="${dark ? 0.02 : 0.05}"/>` +
-    `<stop offset=".72" stop-color="#ffffff" stop-opacity="${dark ? 0.05 : 0.14}"/>` +
-    `<stop offset=".93" stop-color="#ffffff" stop-opacity="${dark ? 0.2 : 0.45}"/>` +
-    `<stop offset="1" stop-color="#ffffff" stop-opacity="${dark ? 0.32 : 0.7}"/></radialGradient>` +
-    `<radialGradient id="${p}-spec"><stop offset="0" stop-color="#ffffff" stop-opacity="${dark ? 0.6 : 0.95}"/>` +
-    '<stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>'
+    '<stop offset="0" stop-color="#ffb8d6"/><stop offset=".4" stop-color="#a9c8ff"/>' +
+    '<stop offset=".75" stop-color="#cbbcff"/><stop offset="1" stop-color="#ffffff"/></linearGradient>' +
+    // Thân tấm kính: trong ở lòng, dày và sáng dần ra mép.
+    `<radialGradient id="${p}-sheet">` +
+    `<stop offset="0" stop-color="#ffffff" stop-opacity="${a(0.02)}"/>` +
+    `<stop offset=".72" stop-color="#ffffff" stop-opacity="${a(0.06)}"/>` +
+    `<stop offset=".9" stop-color="#ffffff" stop-opacity="${a(0.16)}"/>` +
+    `<stop offset=".97" stop-color="#ffffff" stop-opacity="${a(0.32)}"/>` +
+    `<stop offset="1" stop-color="#ffffff" stop-opacity="${a(0.5)}"/></radialGradient>` +
+    // Bóng đổ mềm ngay ngoài mép tấm kính (mép nằm ở .94).
+    `<radialGradient id="${p}-shade">` +
+    `<stop offset=".9" stop-color="${dark ? '#000611' : '#3f5a8f'}" stop-opacity="0"/>` +
+    `<stop offset=".94" stop-color="${dark ? '#000611' : '#3f5a8f'}" stop-opacity="${dark ? 0.36 : 0.13}"/>` +
+    `<stop offset="1" stop-color="${dark ? '#000611' : '#3f5a8f'}" stop-opacity="0"/></radialGradient>` +
+    // Viền phản quang: sáng ở phía đón sáng, mờ dần về phía kia.
+    `<linearGradient id="${p}-rim" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="#ffffff" stop-opacity="${dark ? 0.4 : 1}"/>` +
+    `<stop offset=".55" stop-color="#ffffff" stop-opacity="${dark ? 0.12 : 0.55}"/>` +
+    `<stop offset="1" stop-color="#ffffff" stop-opacity="${dark ? 0.24 : 0.85}"/></linearGradient>`
   blobs.forEach(([, , , c, o], i) => {
     defs +=
       `<radialGradient id="${p}-b${i}"><stop offset="0" stop-color="${c}" stop-opacity="${o}"/>` +
-      `<stop offset=".55" stop-color="${c}" stop-opacity="${n(o * 0.45)}"/>` +
+      `<stop offset=".55" stop-color="${c}" stop-opacity="${n3(o * 0.45)}"/>` +
       `<stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`
   })
 
@@ -812,10 +834,8 @@ function drawLiquidGlass(dark: boolean) {
     `@keyframes ${p}-dr{from{transform:translate(-50px,-30px)}to{transform:translate(50px,30px)}}` +
     `.${p}-sw{transform-box:fill-box;transform-origin:center;animation:${p}-sw ease-in-out infinite alternate}` +
     `@keyframes ${p}-sw{from{transform:rotate(-1.6deg) translate(-10px,0)}to{transform:rotate(1.6deg) translate(10px,6px)}}` +
-    `.${p}-fl{animation:${p}-fl ease-in-out infinite alternate}` +
-    `@keyframes ${p}-fl{from{transform:translateY(-12px)}to{transform:translateY(12px)}}` +
-    `.${p}-sh{animation:${p}-sh 16s ease-in-out infinite}` +
-    `@keyframes ${p}-sh{0%,100%{opacity:.75}50%{opacity:1}}`
+    `.${p}-tl{transform-box:fill-box;transform-origin:center;animation:${p}-tl ease-in-out infinite alternate}` +
+    `@keyframes ${p}-tl{from{transform:rotate(-.9deg)}to{transform:rotate(.9deg)}}`
 
   let glow = ''
   blobs.forEach(([x, y, r], i) => {
@@ -823,26 +843,27 @@ function drawLiquidGlass(dark: boolean) {
     glow += `<g class="${p}-dr" style="animation-duration:${dur}s;animation-delay:${-i * 17}s"><circle cx="${x}" cy="${y}" r="${r}" fill="url(#${p}-b${i})"/></g>`
   })
 
-  // Dải kính: một dải lớn quét qua góc trên phải, một dải ôm góc dưới trái, một dải mảnh trên trái.
-  const ribbons: [readonly Pt[], number, number][] = [
-    [[[930, -80], [1180, 170], [1420, 40], [1700, 420]], 230, 46],
-    [[[-120, 470], [180, 560], [260, 820], [560, 990]], 240, 54],
-    [[[-80, 150], [120, 60], [260, 240], [430, -60]], 110, 40],
-    [[[1240, 1000], [1360, 780], [1560, 820], [1700, 640]], 140, 50],
+  // Tấm kính: [cx, cy, rx, ry, góc xoay, chu kỳ]. Tâm ở ngoài khung, chỉ mép cong lấn vào.
+  const sheets: [number, number, number, number, number, number][] = [
+    [1850, 400, 640, 780, -16, 64],
+    [1590, -150, 430, 390, 28, 52],
+    [-170, 1010, 640, 540, 22, 58],
+    [90, -290, 580, 470, -12, 70],
+    [1400, 1150, 540, 400, -8, 48],
   ]
   let glass = ''
-  ribbons.forEach(([pts, w, dur], i) => {
-    glass += `<g class="${p}-sw" style="animation-duration:${dur}s;animation-delay:${-i * 9}s">${glassRibbon(p, pts, w, dark)}</g>`
+  sheets.forEach(([cx, cy, rx, ry, rot, dur], i) => {
+    glass += `<g class="${p}-tl" style="animation-duration:${dur}s;animation-delay:${-i * 11}s">${glassSheet(p, cx, cy, rx, ry, rot, dark)}</g>`
   })
 
-  const orbs: [number, number, number, number][] = [
-    [1330, 250, 92, 24],
-    [250, 700, 64, 28],
-    [1500, 690, 46, 21],
-    [420, 120, 34, 26],
+  // Dải kính uốn lượn: quét qua góc trên phải, ôm góc dưới trái, vắt góc dưới phải.
+  const ribbons: [readonly Pt[], number, number][] = [
+    [[[820, -120], [1120, 160], [1380, 50], [1720, 350]], 200, 46],
+    [[[-140, 430], [150, 540], [270, 800], [600, 1010]], 220, 54],
+    [[[1180, 1010], [1340, 770], [1560, 810], [1720, 600]], 150, 50],
   ]
-  orbs.forEach(([x, y, r, dur], i) => {
-    glass += `<g class="${p}-fl" style="animation-duration:${dur}s;animation-delay:${-i * 6}s">${glassOrb(p, x, y, r, dark)}</g>`
+  ribbons.forEach(([pts, w, dur], i) => {
+    glass += `<g class="${p}-sw" style="animation-duration:${dur}s;animation-delay:${-i * 9}s">${glassRibbon(p, pts, w, dark)}</g>`
   })
 
   const body = `<rect width="${W}" height="${H}" fill="url(#${p}-base)"/>` + glow + glass
@@ -1024,21 +1045,22 @@ export const SCENES: readonly Scene[] = [
   {
     id: 'kinh-long',
     name: 'Kính lỏng',
-    desc: 'Nền pastel loang, dải kính cong và giọt kính khúc xạ',
+    desc: 'Nền xanh băng, bạc, tím nhạt, hồng phấn; tấm kính lỏng uốn lượn xếp lớp',
     alias: ['kinh', 'kinh long', 'glass', 'liquid glass', 'liquid'],
     mode: 'light',
-    // Kính trong hơn các cảnh khác (opacity thấp, blur cao): nền giữa đủ mịn để chữ vẫn rõ.
-    glass: { blur: 34, tint: '#f7f9fd', opacity: 0.46 },
+    // Kính trắng, trong hơn hẳn các cảnh khác (opacity thấp, blur cao): nền giữa sáng và mịn
+    // nên chữ đậm vẫn rõ dù panel gần như trong suốt.
+    glass: { blur: 36, tint: '#ffffff', opacity: 0.32 },
     palette: {
-      roles: { accent: '#2f6ad0', danger: '#c03a4c', success: '#2e8458', warning: '#a26d10', pro: '#7a52c4' },
+      roles: { accent: '#007aff', danger: '#d1364a', success: '#1f8a55', warning: '#a86a00', pro: '#7d57d1' },
       anchors: {
-        'surface-0': '#eaeef7',
-        'surface-1': '#f1f4fa',
-        'surface-2': '#f8f9fd',
-        'surface-3': '#f8f9fd',
-        'text-primary': '#141a2b',
-        'text-secondary': '#323d58',
-        'text-muted': '#4d5872',
+        'surface-0': '#e4ebf7',
+        'surface-1': '#edf2fa',
+        'surface-2': '#f7f9fd',
+        'surface-3': '#f7f9fd',
+        'text-primary': '#17243a',
+        'text-secondary': '#3b4a63',
+        'text-muted': '#55637a',
       },
     },
     draw: () => drawLiquidGlass(false),
@@ -1049,17 +1071,17 @@ export const SCENES: readonly Scene[] = [
     desc: 'Kính lỏng trên nền đêm xanh tím',
     alias: ['kinh dem', 'kinh long dem', 'glass dark', 'liquid dark'],
     mode: 'dark',
-    glass: { blur: 34, tint: '#121829', opacity: 0.52 },
+    glass: { blur: 36, tint: '#0e1424', opacity: 0.44 },
     palette: {
-      roles: { accent: '#82b0ff', danger: '#ff7a86', success: '#72cf9e', warning: '#eec05e', pro: '#c3a3ff' },
+      roles: { accent: '#0a84ff', danger: '#ff7a86', success: '#5fd39a', warning: '#f0bd55', pro: '#bfa0ff' },
       anchors: {
-        'surface-0': '#0f1322',
-        'surface-1': '#151a2b',
-        'surface-2': '#1a2033',
-        'surface-3': '#1e2438',
-        'text-primary': '#eef1fa',
-        'text-secondary': '#c8cee0',
-        'text-muted': '#a2abc2',
+        'surface-0': '#0d1220',
+        'surface-1': '#131929',
+        'surface-2': '#182033',
+        'surface-3': '#1c2438',
+        'text-primary': '#f2f5fb',
+        'text-secondary': '#c6cee0',
+        'text-muted': '#a1abc2',
       },
     },
     draw: () => drawLiquidGlass(true),

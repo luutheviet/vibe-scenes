@@ -37,7 +37,7 @@ Trong **app Claude Desktop** (tab Code): bấm **+** cạnh ô chat → **Plugin
 | `/scene sen` | 🪷 Đầm sen: lá sen nổi, hoa sen khẽ đung đưa, gợn nước |
 | `/scene nui` | 🏔️ Núi đêm: núi Tây Bắc chồng lớp, sương trôi, đèn nhà sàn |
 | `/scene hoa-dang` | 🏮 Hoa đăng: đèn hoa đăng trôi chậm trên sông đêm |
-| `/scene kinh` | 🫧 Kính lỏng: nền pastel loang, dải kính cong và giọt kính khúc xạ (sáng) |
+| `/scene kinh` | 🫧 Kính lỏng: nền xanh băng, bạc, tím nhạt, hồng phấn; tấm kính lỏng uốn lượn xếp lớp (sáng) |
 | `/scene kinh-dem` | 🫧 Kính lỏng đêm: cùng phong cách kính trên nền đêm xanh tím |
 | `/scene off` | Tắt, về giao diện gốc |
 
